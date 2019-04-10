@@ -1,6 +1,7 @@
 using System;
 using System.Configuration;
 using System.Collections.Generic;
+using System.Linq;
 
 // Каждый документ — это список токенов. То есть List<string>.
 // Вместо этого будем использовать псевдоним DocumentTokens.
@@ -14,16 +15,27 @@ namespace Antiplagiarism
     {
         public List<ComparisonResult> CompareDocumentsPairwise(List<DocumentTokens> documents)
         {
-            if (documents.Count < 2) return new List<ComparisonResult>();
-            
-            return new List<ComparisonResult> {
-                new ComparisonResult(
-                    documents[0], 
-                    documents[1], 
-                    CalcLevenshteinDistance(documents[0], documents[1]))};
+            return documents.Count >= 2 ? GetDocumentsPairwise(documents).ToList() : new List<ComparisonResult>();
+        }
+
+        private IEnumerable<ComparisonResult> GetDocumentsPairwise(IEnumerable<DocumentTokens> documents)
+        {
+            var queue = new Queue<DocumentTokens>(documents);
+            while (queue.Count >0)
+            {
+                var first = queue.Dequeue();
+                foreach (var document in queue)
+                {
+                    if(document.Equals(first)) continue;
+                    yield return new ComparisonResult(
+                        first, 
+                        document, 
+                        CalcLevenshteinDistance(first, document));
+                }   
+            }
         }
         
-        private Double CalcLevenshteinDistance(List<string> a, List<string> b)
+        private double CalcLevenshteinDistance(IReadOnlyList<string> a, IReadOnlyList<string> b)
         {
             if (a.Count == 0 && b.Count == 0) return 0;
             if (a.Count == 0) return b.Count;
@@ -31,6 +43,7 @@ namespace Antiplagiarism
 
             var distances = new double[2, b.Count + 1];
             for (var i = 0;  i <= b.Count;  distances[0, i] = i++);
+            
             distances[1, 0] = 1;
             
             for (var i = 1;  i <= a.Count;  i++)
@@ -47,7 +60,7 @@ namespace Antiplagiarism
                     );
                 }
 
-                for (var k = 0; k < distances.GetLength(1); k++)
+                for (var k = 0; k <= b.Count; k++)
                     distances[0,k] = distances[1,k];
                 distances[1, 0]++;
             }
